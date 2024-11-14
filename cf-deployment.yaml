@@ -118,9 +118,9 @@ Resources:
   LaravelRDSInstance:
     Type: AWS::RDS::DBInstance
     Properties:
-      DBInstanceClass: db.t2.micro
+      DBInstanceClass: db.t3.micro
       Engine: mysql
-      EngineVersion: "8.0.40"
+      EngineVersion: "8.0.32"
       AllocatedStorage: "20"
       DBName: laravelDB
       MasterUsername: !Ref DBUsername
@@ -129,6 +129,7 @@ Resources:
         - !Ref RDSSecurityGroup
       DBSubnetGroupName: !Ref DBSubnetGroup
       MultiAZ: false
+      BackupRetentionPeriod: 0
 
   # EC2 Instance
   LaravelEC2Instance:
@@ -144,6 +145,43 @@ Resources:
         - Key: Name
           Value: "LaravelAppServer"
 
+  # IAM User for Admin Access
+  LaravelAdminUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: "LaravelAdminUser"
+      LoginProfile:
+        Password: !Ref IAMUserPassword
+        PasswordResetRequired: true
+      Policies:
+        - PolicyName: "LaravelAdminUserPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "ec2:*"
+                Resource:
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${LaravelEC2Instance}
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/${EC2SecurityGroup}
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/${RDSSecurityGroup}
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:vpc/${LaravelVPC}
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/${PublicSubnetA}
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/${PrivateSubnetA}
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/${PrivateSubnetB}
+
+              - Effect: "Allow"
+                Action:
+                  - "rds:*"
+                Resource:
+                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:${LaravelRDSInstance}
+                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:subgrp/${DBSubnetGroup}
+
+              - Effect: "Allow"
+                Action:
+                  - "logs:*"
+                Resource: "*"
+
 Parameters:
   KeyName:
     Description: "KeyPair for SSH access"
@@ -158,5 +196,19 @@ Parameters:
     Description: "Database admin account password"
     Type: String
     MinLength: 8
-    MaxLength: 41
+    MaxLength: 16
     NoEcho: true
+  IAMUserPassword:
+    Description: "Initial password for IAM user"
+    Type: String
+    MinLength: 12
+    MaxLength: 128
+    NoEcho: true  # Hides the password input in the console for security
+
+Outputs:
+  EC2InstanceId:
+    Description: Instance ID of the EC2 instance
+    Value: !Ref LaravelEC2Instance
+  RDSInstanceEndpoint:
+    Description: Endpoint of the RDS instance
+    Value: !GetAtt LaravelRDSInstance.Endpoint.Address
