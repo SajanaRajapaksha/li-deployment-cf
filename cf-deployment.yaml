@@ -120,6 +120,7 @@ Resources:
     Properties:
       DBInstanceClass: db.t2.micro
       Engine: mysql
+      EngineVersion: "8.0.40"
       AllocatedStorage: "20"
       DBName: laravelDB
       MasterUsername: !Ref DBUsername
